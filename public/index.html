@@ -78,6 +78,11 @@
       <div class="stack" id="duelForm">
         <div class="field"><label class="lab" for="nick">Ton pseudo</label><input id="nick" type="text" maxlength="16" autocomplete="off" spellcheck="false"></div>
         <div class="box">
+          <h3 class="h3">Partie rapide</h3>
+          <p class="fine">Tu affrontes le premier joueur disponible, sans code ni lien à partager. Si personne n'attend, ta partie s'ouvre (durée et règle choisies ci-dessous) et démarre dès qu'un joueur arrive.</p>
+          <button class="btn primary" id="btnQuick" type="button">Trouver un adversaire</button>
+        </div>
+        <div class="box">
           <h3 class="h3">Créer une partie</h3>
           <div class="field">
             <span class="lab" id="duelDurLab">Durée</span>
@@ -109,8 +114,8 @@
     </section>
 
     <section class="card" id="cardLobby" hidden>
-      <h2 class="h">Salle d'attente</h2>
-      <div class="row"><div class="led code" id="lobbyCode">----</div><button class="btn second small" id="copyCode" type="button">Copier le code</button><button class="btn second small" id="shareLink" type="button" hidden>Partager le lien</button></div>
+      <h2 class="h" id="lobbyTitle">Salle d'attente</h2>
+      <div class="row" id="lobbyCodeRow"><div class="led code" id="lobbyCode">----</div><button class="btn second small" id="copyCode" type="button">Copier le code</button><button class="btn second small" id="shareLink" type="button" hidden>Partager le lien</button></div>
       <p class="fine" id="lobbyRule"></p>
       <div class="stack" id="lobbyPlayers"></div>
       <p class="note" id="lobbyMsg"></p>

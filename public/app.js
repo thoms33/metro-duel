@@ -643,6 +643,8 @@ const LIVE = window.MetroLive || null;
 // en liaison directe, l'accueil (liste des parties ouvertes) ne se relie qu'à l'ouverture de l'écran du duel
 let lobbyWanted = false;
 function openLobby() { lobbyWanted = true; if (Net.ns && Net.ns.open) Net.ns.open(); }
+// partie rapide : on rejoint la première partie ouverte, sinon on en ouvre une qui démarre dès qu'un joueur arrive
+const Quick = { on: false, gen: 0, skip: new Map() };   // skip : parties déjà tentées (code → jusqu'à quand les éviter)
 async function initNet() {
   let ns = null;
   const slow = setTimeout(() => { Net.slow = true; renderDuelMenu(); }, 6000);
@@ -651,7 +653,7 @@ async function initNet() {
   Net.ns = ns; Net.state = ns ? 'ok' : 'off';
   if (ns) {
     try {
-      ns.onPeers(() => { if (screen === 'duel') renderOpenGames(); });
+      ns.onPeers(() => { if (screen === 'duel') renderOpenGames(); else if (screen === 'lobby') quickSwitch(); });
       if (ns.onConnection) ns.onConnection(() => { if (screen === 'duel') renderOpenGames(); });
     } catch (e) {}
     if (lobbyWanted) openLobby();
@@ -671,7 +673,7 @@ function openGames() {
   for (const p of Net.ns.peers()) {
     const pr = p.presence || {};
     if (p.kind !== 'viewer' || (p.isMe && p.sameTab) || typeof pr.w !== 'string' || !CODE_RE.test(pr.w) || seen.has(pr.w)) continue;
-    seen.add(pr.w); out.push({ code: pr.w, n: cleanName(pr.wn), d: clampDur(pr.wd), m: pr.wm === 'conq' ? 'conq' : 'course' });
+    seen.add(pr.w); out.push({ code: pr.w, n: cleanName(pr.wn), d: clampDur(pr.wd), m: pr.wm === 'conq' ? 'conq' : 'course', q: pr.wq === 1 });
   }
   return out;
 }
@@ -683,17 +685,17 @@ function renderOpenGames() {
   box.replaceChildren(...list.slice(0, 6).map(g => {
     const row = el('div', 'game'), txt = el('div'), b = el('button', 'btn second small', 'Rejoindre');
     txt.append(el('b', '', 'Partie de ' + g.n), document.createTextNode(Math.round(g.d / 60) + ' min · ' + (g.m === 'conq' ? 'Conquête' : 'Course') + ' · ' + g.code));
-    b.type = 'button'; b.onclick = () => joinGame(g.code);
+    b.type = 'button'; b.onclick = () => { Quick.on = false; joinGame(g.code); };
     row.append(txt, b); return row;
   }));
 }
 function advertise() {
   if (!Net.ns) return;
   const open = Net.room && MP.h && !MP.t0 && !(Opp.id && Opp.here);
-  const sig = open ? MP.c + MP.n + MP.d + MP.m : '';
+  const sig = open ? MP.c + MP.n + MP.d + MP.m + (Quick.on ? 'q' : '') : '';
   if (sig === Net.adSig) return;
   Net.adSig = sig;
-  Net.ns.presence(open ? { w: MP.c, wn: MP.n, wd: MP.d, wm: MP.m } : { w: null, wn: null, wd: null, wm: null }).catch(() => {});
+  Net.ns.presence(open ? { w: MP.c, wn: MP.n, wd: MP.d, wm: MP.m, wq: Quick.on ? 1 : null } : { w: null, wn: null, wd: null, wm: null, wq: null }).catch(() => {});
 }
 function push() {
   if (!Net.room) return;
@@ -762,7 +764,10 @@ function syncDuel() {
       const hp = opp.pr;
       clearTimeout(joinTimer);
       if (hp.g && hp.g !== MP.id) {
-        if (!G.on) { quitDuel().then(() => { show('duel'); joinError('Cette partie est déjà complète.'); }); return; }
+        if (!G.on) {
+          if (Quick.on) { Quick.skip.set(MP.c, Date.now() + 60000); quickRetry(); return; }   // prise par un autre : on cherche ailleurs
+          quitDuel().then(() => { show('duel'); joinError('Cette partie est déjà complète.'); }); return;
+        }
       } else {
         const e = +hp.e || 1;
         if (e !== MP.e) { MP.e = e; MP.t0 = 0; MP.f = ''; MP.f2 = ''; MP.k = 0; MP.x = 0; G.on = false; resetBoard(); dirty = true; if (screen !== 'lobby') show('lobby'); }
@@ -775,6 +780,8 @@ function syncDuel() {
   setOpp(opp);
   if (dirty) { push(); saveDuel(); }
   advertise(); updateAll();
+  // partie rapide : pas de bouton « Lancer », le décompte part dès que l'adversaire est là
+  if (Quick.on && MP.h && !MP.t0 && Opp.id && Opp.here) launch();
 }
 function setOpp(o) {
   if (!o) { Opp.here = false; if (!G.on) { Opp.id = null; Opp.name = ''; Opp.found = new Map(); Opp.fstr = ''; Opp.x = 0; } recompute(); return; }
@@ -794,6 +801,7 @@ function setOpp(o) {
   recompute();
 }
 function beginDuel() {
+  Quick.on = false;                                // adversaire trouvé : les manches suivantes se lancent à la main
   G.kind = 'duel'; G.rule = MP.m; G.dur = MP.d; G.t0 = MP.t0; G.pausedAt = 0; G.on = true; G.ended = false; G.reveal = false;
   recompute(); show('play');
 }
@@ -816,9 +824,44 @@ async function joinGame(code) {
   Object.assign(MP, { c: code, id: rnd(10, B64), n: myName(), h: 0, j: Date.now(), e: 0, d: 3600, m: 'course', g: null, t0: 0, f: '', f2: '', k: 0, x: 0 });
   G.on = false; resetBoard(); G.kind = 'duel'; Opp.id = null;
   push(); saveDuel(); show('lobby'); refreshPeers();
-  clearTimeout(joinTimer);
   Net.noHost = false;
-  joinTimer = setTimeout(() => { if (screen === 'lobby' && !MP.h && !Opp.id) { Net.noHost = true; renderLobby(); } }, 6000);
+  armJoinTimer(6000);
+}
+/** Invité sans nouvelles de l'hôte : on le signale, ou en partie rapide on cherche une autre partie. */
+function armJoinTimer(ms) {
+  clearTimeout(joinTimer);
+  joinTimer = setTimeout(() => {
+    if (screen !== 'lobby' || MP.h || Opp.id) return;
+    if (Quick.on) {
+      if (Net.room && Net.room.connected && !Net.room.connected()) return armJoinTimer(3000);   // encore en train de se relier
+      Quick.skip.set(MP.c, Date.now() + 60000); return quickRetry();                       // annonce périmée
+    }
+    Net.noHost = true; renderLobby();
+  }, ms);
+}
+const waitFor = (ok, ms) => new Promise(resolve => { const t0 = Date.now(), loop = () => (ok() || Date.now() - t0 > ms ? resolve() : setTimeout(loop, 200)); loop(); });
+async function quickMatch() {
+  if (!Net.ns) return;
+  const gen = ++Quick.gen;
+  Quick.on = true; joinError('');
+  show('lobby');                                   // « Recherche d'un adversaire… » pendant qu'on lit la liste des parties
+  await waitFor(() => !Net.ns.connected || Net.ns.connected(), 8000);
+  if (!Quick.on || gen !== Quick.gen) return;      // annulé entre-temps
+  const now = Date.now(), g = openGames().find(g => !(Quick.skip.get(g.code) > now));
+  if (g) joinQuick(g.code); else hostGame();
+}
+function joinQuick(code) { Quick.on = true; Quick.gen++; Quick.skip.set(code, Date.now() + 30000); return joinGame(code); }
+function quickRetry() { quitDuel().then(quickMatch); }
+/**
+ * Deux joueurs qui cherchent en même temps ouvrent chacun une partie : celui dont le code vient après
+ * dans l'ordre alphabétique rejoint l'autre. Une partie ouverte à la main est toujours rejointe.
+ */
+function quickSwitch() {
+  if (!Quick.on || !MP.h || MP.t0 || (Opp.id && Opp.here)) return;
+  const now = Date.now(), g = openGames().find(g => g.code !== MP.c && !(Quick.skip.get(g.code) > now) && (!g.q || g.code < MP.c));
+  if (!g) return;
+  Quick.on = false;                                // évite un second déclenchement pendant la bascule
+  quitDuel().then(() => joinQuick(g.code));
 }
 async function resumeDuel(saved) {
   const mp = saved.mp || {};
@@ -845,6 +888,7 @@ function newRound() {
   push(); saveDuel(); show('lobby');
 }
 async function quitDuel() {
+  Quick.on = false; Quick.gen++;
   clearTimeout(joinTimer);
   await leaveRoom();
   store.set('sessionStorage', 'md.duel', null); setHash('');
@@ -853,17 +897,25 @@ async function quitDuel() {
 }
 function setHash(code) { try { location.hash = code ? 'duel-' + code.toLowerCase() : ''; } catch (e) {} }
 function renderLobby() {
+  const quick = Quick.on && !MP.t0, rule = $('lobbyRule');
+  $('lobbyTitle').textContent = quick ? 'Recherche d\'un adversaire' : 'Salle d\'attente';
+  $('lobbyCodeRow').hidden = quick || !MP.c;       // partie rapide : rien à partager
   $('lobbyCode').textContent = MP.c || '----';
-  $('lobbyRule').textContent = Math.round((MP.d || 3600) / 60) + ' minutes · ' + (RULE_HELP[MP.m] || RULE_HELP.course);
-  const me = el('div', 'pl', MP.n || 'Moi'), box = $('lobbyPlayers'), msg = $('lobbyMsg'), go = $('btnLaunch');
+  rule.textContent = MP.c ? Math.round((MP.d || 3600) / 60) + ' minutes · ' + (RULE_HELP[MP.m] || RULE_HELP.course) : '';
+  rule.hidden = !MP.c;
+  $('lobbyQuit').textContent = quick ? 'Annuler' : 'Quitter la partie';
+  const me = el('div', 'pl', MP.n || cleanName(nick.value)), box = $('lobbyPlayers'), msg = $('lobbyMsg'), go = $('btnLaunch');
   me.append(el('span', '', MP.h ? 'Hôte · toi' : 'Toi'));
   let other;
   if (Opp.id) { other = el('div', 'pl opp', Opp.name); other.append(el('span', '', Opp.here ? (MP.h ? 'Adversaire' : 'Hôte') : 'Hors ligne')); }
-  else other = el('div', 'pl empty', MP.h ? 'En attente d\'un adversaire…' : 'Recherche de la partie…');
+  else other = el('div', 'pl empty', quick ? 'Recherche d\'un adversaire…' : MP.h ? 'En attente d\'un adversaire…' : 'Recherche de la partie…');
   box.replaceChildren(me, other);
-  go.hidden = !MP.h; go.disabled = !(Opp.id && Opp.here);
+  go.hidden = !MP.h || quick; go.disabled = !(Opp.id && Opp.here);
   const linked = !Net.room || !Net.room.connected || Net.room.connected();
-  if (!linked && !(Opp.id && Opp.here)) msg.textContent = 'Connexion au direct…';
+  if (quick && !MP.c) msg.textContent = 'Recherche des parties ouvertes…';
+  else if (!linked && !(Opp.id && Opp.here)) msg.textContent = 'Connexion au direct…';
+  else if (MP.h && quick) msg.textContent = Opp.id && Opp.here ? 'Adversaire trouvé : la partie démarre.'
+    : 'Personne n\'attend pour l\'instant : ta partie est ouverte. Elle démarre toute seule dès qu\'un joueur touche « Trouver un adversaire ». Garde cette page ouverte.';
   else if (MP.h) msg.textContent = Opp.id && Opp.here ? 'Vous êtes deux. Lance la partie quand vous êtes prêts : un décompte de 4 secondes démarre pour les deux.'
     : 'Envoie le lien à ton adversaire avec « Partager le lien ». Il peut aussi ouvrir le site, toucher « Duel 1 contre 1 » et taper le code ci-dessus.';
   else msg.textContent = Opp.id ? (Opp.here ? 'En attente du lancement par ' + Opp.name + '.' : Opp.name + ' est hors ligne pour l\'instant. La partie reprend dès son retour sur la page.')
@@ -871,8 +923,9 @@ function renderLobby() {
 }
 $('btnDuel').onclick = () => { renderDuelMenu(); show('duel'); };
 $('duelBack').onclick = () => show('home');
-$('btnHost').onclick = hostGame;
-$('joinForm').addEventListener('submit', e => { e.preventDefault(); joinGame($('code').value); });
+$('btnQuick').onclick = quickMatch;
+$('btnHost').onclick = () => { Quick.on = false; hostGame(); };
+$('joinForm').addEventListener('submit', e => { e.preventDefault(); Quick.on = false; joinGame($('code').value); });
 $('btnLaunch').onclick = launch;
 $('lobbyQuit').onclick = quitDuel;
 $('copyCode').onclick = () => {

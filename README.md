@@ -7,7 +7,8 @@ Site public : https://thoms33.github.io/metro-duel/
 ## Jouer
 
 - **Seul** : « Jouer seul », choisis la durée. La partie se garde dans le navigateur : tu peux la reprendre plus tard.
-- **Duel** : « Duel 1 contre 1 » → « Créer la partie ». La partie apparaît chez tous ceux qui ont ouvert l'écran du duel : l'adversaire touche « Rejoindre » dans la liste. Il peut aussi ouvrir le lien envoyé avec « Partager le lien », ou taper le code à 4 caractères. L'hôte lance, un décompte de 4 secondes démarre pour les deux.
+- **Partie rapide** : « Duel 1 contre 1 » → « Trouver un adversaire ». Rien à partager : on rejoint la première partie ouverte, ou, si personne n'attend, on en ouvre une qui démarre toute seule dès qu'un autre joueur touche le même bouton. Si deux joueurs cherchent au même moment, l'un rejoint l'autre.
+- **Duel avec quelqu'un de précis** : « Duel 1 contre 1 » → « Créer la partie ». La partie apparaît chez tous ceux qui ont ouvert l'écran du duel : l'adversaire touche « Rejoindre » dans la liste. Il peut aussi ouvrir le lien envoyé avec « Partager le lien », ou taper le code à 4 caractères. L'hôte lance, un décompte de 4 secondes démarre pour les deux.
 - Deux règles : **Course** (chacun sa carte) et **Conquête** (une station appartient au premier qui la trouve).
 
 ## Lancer en local
