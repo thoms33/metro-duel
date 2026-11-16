@@ -2,6 +2,9 @@
 /**
  * Métro Duel : serveur.
  *
+ * Facultatif : par défaut le site est statique et le duel passe par une liaison directe
+ * entre joueurs (public/p2p.js). Ce serveur sert au mode transport: "ws" de public/config.js.
+ *
  * Deux rôles dans un seul processus :
  *   1. servir le site statique (dossier public/) ;
  *   2. relayer en WebSocket (/ws) la « présence » des joueurs d'un même salon.
@@ -28,7 +31,8 @@ const TYPES = {
 };
 const CSP = [
   "default-src 'self'", "script-src 'self'", "style-src 'self' https://fonts.googleapis.com",
-  "font-src https://fonts.gstatic.com", "img-src 'self' data:", "connect-src 'self' ws: wss:",
+  // https://0.peerjs.com : mise en relation du duel en liaison directe (p2p.js)
+  "font-src https://fonts.gstatic.com", "img-src 'self' data:", "connect-src 'self' ws: wss: https://0.peerjs.com",
   "base-uri 'none'", "form-action 'none'", "frame-ancestors 'self'",
 ].join('; ');
 

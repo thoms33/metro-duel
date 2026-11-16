@@ -1,6 +1,14 @@
 # Métro Duel
 
-Retrouve de mémoire les 321 stations du métro de Paris (lignes 1 à 14, 3 bis, 7 bis) sur une carte, en 60 minutes. Seul, ou en duel en direct.
+Retrouve de mémoire les 321 stations du métro de Paris (lignes 1 à 14, 3 bis, 7 bis) sur une carte, en 60 minutes. Seul, ou en duel 1 contre 1 en direct, sur ordinateur comme sur téléphone.
+
+Site public : https://thoms33.github.io/metro-duel/
+
+## Jouer
+
+- **Seul** : « Jouer seul », choisis la durée. La partie se garde dans le navigateur : tu peux la reprendre plus tard.
+- **Duel** : « Duel 1 contre 1 » → « Créer la partie », puis envoie le lien (« Partager le lien ») ou le code à 4 caractères. L'adversaire ouvre le lien, ou tape le code dans « Rejoindre une partie ». L'hôte lance, un décompte de 4 secondes démarre pour les deux.
+- Deux règles : **Course** (chacun sa carte) et **Conquête** (une station appartient au premier qui la trouve).
 
 ## Lancer en local
 
@@ -9,26 +17,27 @@ npm install
 npm start        # http://localhost:3000
 ```
 
-Pour tester le duel seul : ouvre le site dans deux onglets, crée une partie dans l'un, rejoins-la dans l'autre.
+N'importe quel serveur de fichiers statiques sur `public/` fait aussi l'affaire. Pour tester le duel seul : ouvre le site dans deux onglets, crée une partie dans l'un, rejoins-la dans l'autre. Il faut Internet pour le duel (mise en relation PeerJS).
 
 ## Comment ça marche
 
-- `public/` : le site (HTML, CSS, JS sans framework). `app.js` contient le jeu, `live.js` la liaison WebSocket, `data.js` les stations et les lignes.
-- `server.js` : un seul processus Node qui sert `public/` et relaie en WebSocket (`/ws`) l'état des joueurs d'un même salon. Il ne connaît pas les règles et ne stocke rien.
-- Une partie = un salon nommé par un code à 4 caractères. Chaque joueur publie son état (pseudo, stations trouvées, heure de départ) ; l'autre le reçoit en direct. Le lien d'invitation est `https://ton-site/#duel-code`.
-- Deux règles : **Course** (chacun sa carte) et **Conquête** (une station appartient au premier qui la trouve).
+- `public/` : le site (HTML, CSS, JS sans framework). `app.js` contient le jeu, `data.js` les stations et les lignes, `config.js` les réglages.
+- Le duel passe par des « salons » : chaque joueur y publie son état (pseudo, stations trouvées, heure de départ) et reçoit celui de l'autre. Deux façons de les relier, au choix dans `config.js` :
+  - **`p2p`** (par défaut) : `p2p.js`, liaison directe entre navigateurs en WebRTC, par [PeerJS](https://peerjs.com) (MIT, copie dans `public/vendor/`, chargée seulement en duel). La mise en relation passe par le serveur public de PeerJS, ensuite les données vont d'un joueur à l'autre. Le premier arrivé dans un salon en tient l'identifiant (`metro-duel-duel-<code>`) et relaie l'état des autres ; s'il part, l'autre reprend la main. Aucun serveur à faire tourner : un hébergement statique suffit.
+  - **`ws`** : `live.js` + `server.js`, un processus Node qui sert `public/` et relaie en WebSocket (`/ws`). Il ne connaît pas les règles et ne stocke rien. Seul ce mode affiche la liste des parties ouvertes.
+- Le lien d'invitation est `https://ton-site/#duel-code`.
 
 ## Mettre en ligne
 
-Il faut un hébergeur qui garde un processus Node ouvert avec les WebSockets (un hébergement purement statique comme GitHub Pages ne suffit pas pour le serveur).
+**GitHub Pages** (mode `p2p`, par défaut) : le flux `.github/workflows/publier.yml` publie `public/` à chaque envoi sur `main`. À faire une fois : Settings → Pages → Source « GitHub Actions ».
 
-**Render (offre gratuite)** : New → Web Service → choisis ce dépôt, Build Command `npm install`, Start Command `npm start`, Health Check Path `/healthz`, instance Free. Ajoute la variable `TRUST_PROXY=1`. Sur l'offre gratuite, le service s'endort après 15 minutes sans trafic et met environ une minute à se réveiller.
+**Serveur Node** (mode `ws`) : il faut un hébergeur qui garde un processus ouvert avec les WebSockets.
 
-**Docker** (Fly.io, Koyeb, VPS…) : `docker build -t metro-duel . && docker run -p 3000:3000 metro-duel`.
+- Render (offre gratuite) : New → Web Service → ce dépôt, Build Command `npm install`, Start Command `npm start`, Health Check Path `/healthz`, variable `TRUST_PROXY=1`. Le service s'endort après 15 minutes sans trafic et met environ une minute à se réveiller.
+- Docker (Fly.io, Koyeb, VPS…) : `docker build -t metro-duel . && docker run -p 3000:3000 metro-duel`.
+- Site et serveur séparés : renseigne l'adresse du serveur dans `public/config.js` (`wsUrl`) et autorise le site côté serveur avec `ALLOWED_ORIGINS=https://ton-site`.
 
-**Site et serveur séparés** : si `public/` est hébergé ailleurs, renseigne l'adresse du serveur dans `public/config.js` (`wsUrl`) et autorise le site côté serveur avec `ALLOWED_ORIGINS=https://ton-site`.
-
-### Variables d'environnement
+### Variables d'environnement du serveur
 
 | Variable | Rôle | Défaut |
 | --- | --- | --- |
@@ -43,7 +52,7 @@ Il faut un hébergeur qui garde un processus Node ouvert avec les WebSockets (un
 npm test
 ```
 
-Les tests couvrent le serveur (fichiers statiques, relais, limites, origines). Le duel dans le navigateur a été vérifié avec deux joueurs simulés, pas encore sur un serveur en ligne.
+Les tests couvrent le serveur du mode `ws` (fichiers statiques, relais, limites, origines).
 
 ## Mettre à jour les données
 

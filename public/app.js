@@ -603,7 +603,7 @@ $('btnResume').onclick = () => { const s = store.get('localStorage', 'md.solo');
 seg('soloDur', () => soloDur, v => { soloDur = +v; renderHome(); updateHeader(); });
 
 /* ================= duel en direct ================= */
-const Net = { ns: null, state: 'init', room: null, viaLobby: false, unsubs: [], others: new Map(), code: null, retries: 0 };
+const Net = { ns: null, state: 'init', room: null, viaLobby: false, unsubs: [], others: new Map(), code: null };
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', CODE_RE = /^[A-HJ-NP-Z2-9]{4}$/;
 const MATCH_KEYS = ['c', 'id', 'n', 'h', 'j', 'e', 'd', 'm', 'g', 't0', 'ts', 'f', 'f2', 'k', 'x'];
@@ -637,29 +637,23 @@ const nick = $('nick');
 nick.value = store.get('localStorage', 'md.name') || 'Joueur ' + rnd(2, '23456789');
 const myName = () => { const n = cleanName(nick.value); store.set('localStorage', 'md.name', n); return n; };
 
-// Le direct passe par le serveur WebSocket du site (live.js). Dans un artefact Claude, par son canal « room ».
-const HOSTED = !!window.MetroLive;
+// Le direct passe par p2p.js (liaison directe entre joueurs) ou par live.js (serveur WebSocket), selon config.js.
+const LIVE = window.MetroLive || null;
 async function initNet() {
   let ns = null;
   const slow = setTimeout(() => { Net.slow = true; renderDuelMenu(); }, 6000);
-  try {
-    if (window.claude && typeof window.claude.use === 'function') ns = await window.claude.use('room');
-    if (!ns && HOSTED) ns = await window.MetroLive.connect();
-  } catch (e) { ns = null; }
+  try { if (LIVE) ns = await LIVE.connect(); } catch (e) { ns = null; }
   clearTimeout(slow);
   Net.ns = ns; Net.state = ns ? 'ok' : 'off';
-  if (ns) { try { ns.onPeers(() => { if (screen === 'duel') renderOpenGames(); }, () => {}); } catch (e) {} }
+  if (ns) { try { ns.onPeers(() => { if (screen === 'duel') renderOpenGames(); }); } catch (e) {} }
   renderDuelMenu();
   if (pendingDuel) { const p = pendingDuel; pendingDuel = null; if (ns) resumeDuel(p); else store.set('sessionStorage', 'md.duel', null); }
 }
 function renderDuelMenu() {
   const m = $('netMsg'), form = $('duelForm');
-  if (Net.state === 'init') { m.hidden = false; form.hidden = true; m.textContent = Net.slow && HOSTED ? 'Le serveur du direct se réveille, cela peut prendre une minute…' : 'Connexion au direct…'; }
-  else if (Net.state === 'off') {
-    m.hidden = false; form.hidden = true;
-    m.textContent = HOSTED ? 'Le direct est indisponible : le serveur ne répond pas. Recharge la page dans un instant.'
-      : 'Le direct n\'est pas disponible dans cette vue. Le duel fonctionne quand la page est ouverte sur claude.ai par deux personnes connectées qui ont accès à cet artefact (toi et la personne que tu invites depuis le menu de partage).';
-  } else { m.hidden = true; form.hidden = false; renderOpenGames(); }
+  if (Net.state === 'init') { m.hidden = false; form.hidden = true; m.textContent = Net.slow ? 'Le serveur du direct se réveille, cela peut prendre une minute…' : 'Connexion au direct…'; }
+  else if (Net.state === 'off') { m.hidden = false; form.hidden = true; m.textContent = 'Le direct est indisponible. Recharge la page dans un instant.'; }
+  else { m.hidden = true; form.hidden = false; renderOpenGames(); }
 }
 function openGames() {
   const out = [], seen = new Set();
@@ -672,7 +666,10 @@ function openGames() {
   return out;
 }
 function renderOpenGames() {
-  const box = $('openGames'), list = openGames();
+  const box = $('openGames');
+  // liaison directe : pas d'annuaire des parties, on se retrouve par le code ou le lien
+  if (!LIVE || !LIVE.listsGames) { box.replaceChildren(el('p', 'fine', 'Tape le code que ton adversaire t\'a donné, ou ouvre le lien qu\'il t\'a envoyé.')); return; }
+  const list = openGames();
   if (!list.length) { box.replaceChildren(el('p', 'fine', 'Aucune partie en attente pour l\'instant. Si quelqu\'un en crée une, elle apparaît ici.')); return; }
   box.replaceChildren(...list.slice(0, 6).map(g => {
     const row = el('div', 'game'), txt = el('div'), b = el('button', 'btn second small', 'Rejoindre');
@@ -700,21 +697,16 @@ function saveDuel() { store.set('sessionStorage', 'md.duel', duelState()); }
 
 async function enterRoom(code) {
   await leaveRoom();
-  Net.code = code; Net.others = new Map(); Net.retries = 0;
+  Net.code = code; Net.others = new Map();
   await connectRoom();
 }
 async function connectRoom() {
+  // les liaisons se rétablissent seules (live.js, p2p.js) ; si le salon est refusé, la partie passe par l'accueil
   let r = null;
   try { r = await Net.ns.join('duel-' + Net.code.toLowerCase()); } catch (e) { r = null; }
   Net.viaLobby = !r; Net.room = r || Net.ns;
-  Net.unsubs.push(Net.room.onPeers(onPeers, onRoomError));
-}
-function onRoomError(e) {
-  // salon perdu : on retente quelques fois, sinon la partie continue en local
-  const code = e && e.code;
-  if (!Net.code || code === 'not_permitted' || code === 'not_granted' || code === 'revoked' || Net.retries >= 5) return;
-  Net.retries++;
-  setTimeout(async () => { if (!Net.code) return; Net.unsubs.forEach(u => { try { u(); } catch (err) {} }); Net.unsubs = []; await connectRoom(); push(); }, 1500 * Net.retries);
+  Net.unsubs.push(Net.room.onPeers(onPeers));
+  if (Net.room.onConnection) Net.unsubs.push(Net.room.onConnection(() => { if (screen === 'lobby') renderLobby(); }));
 }
 async function leaveRoom() {
   Net.unsubs.forEach(u => { try { u(); } catch (e) {} }); Net.unsubs = [];
@@ -861,9 +853,10 @@ function renderLobby() {
   else other = el('div', 'pl empty', MP.h ? 'En attente d\'un adversaire…' : 'Recherche de la partie…');
   box.replaceChildren(me, other);
   go.hidden = !MP.h; go.disabled = !(Opp.id && Opp.here);
-  if (MP.h) msg.textContent = Opp.id && Opp.here ? 'Vous êtes deux. Lance la partie quand vous êtes prêts : un décompte de 4 secondes démarre pour les deux.'
-    : HOSTED ? 'Envoie le lien à ton adversaire avec « Partager le lien ». Il peut aussi ouvrir le site, toucher « Duel 1 contre 1 » et taper le code ci-dessus.'
-    : 'Ton adversaire ouvre cette page, touche « Duel 1 contre 1 », puis choisit ta partie dans la liste ou tape le code ci-dessus.';
+  const linked = !Net.room || !Net.room.connected || Net.room.connected();
+  if (!linked && !(Opp.id && Opp.here)) msg.textContent = 'Connexion au direct…';
+  else if (MP.h) msg.textContent = Opp.id && Opp.here ? 'Vous êtes deux. Lance la partie quand vous êtes prêts : un décompte de 4 secondes démarre pour les deux.'
+    : 'Envoie le lien à ton adversaire avec « Partager le lien ». Il peut aussi ouvrir le site, toucher « Duel 1 contre 1 » et taper le code ci-dessus.';
   else msg.textContent = Opp.id ? (Opp.here ? 'En attente du lancement par ' + Opp.name + '.' : Opp.name + ' est hors ligne pour l\'instant. La partie reprend dès son retour sur la page.')
     : Net.noHost ? 'Personne n\'est connecté sur la partie ' + MP.c + ' pour le moment. Vérifie le code, ou attends que ton adversaire revienne sur la page.' : 'Connexion à la partie…';
 }
@@ -880,7 +873,7 @@ $('copyCode').onclick = () => {
 
 const shareBtn = $('shareLink');
 if (shareBtn) {
-  shareBtn.hidden = !HOSTED;
+  shareBtn.hidden = !(navigator.share || navigator.clipboard);
   shareBtn.onclick = () => {
     const link = location.href.split('#')[0] + '#duel-' + String(MP.c || '').toLowerCase();
     const done = () => { shareBtn.textContent = 'Lien copié'; setTimeout(() => { shareBtn.textContent = 'Partager le lien'; }, 1600); };
@@ -895,22 +888,19 @@ window.addEventListener('hashchange', () => {
 });
 
 /* ================= démarrage ================= */
-function boot(data) {
+function boot() {
   buildChips(); recompute();
   new ResizeObserver(resize).observe(cv.parentElement); resize();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { ST.forEach(s => { s.tw = 0; }); invalidate(); });
   renderHome();
   const m = /^#duel-([a-z0-9]{4})$/.exec(location.hash || '');
   if (m) $('code').value = m[1].toUpperCase();
-  const duel = (data && data.duel) || store.get('sessionStorage', 'md.duel');
+  const duel = store.get('sessionStorage', 'md.duel');
   if (duel && duel.mp) pendingDuel = duel;
-  if (data && data.solo && !pendingDuel) startSolo(data.solo);
-  else show(m && !pendingDuel ? 'duel' : 'home');
+  show(m && !pendingDuel ? 'duel' : 'home');
   setInterval(tick, 200);
   window.addEventListener('pagehide', () => { saveSolo(); if (MP.c) saveDuel(); });
   initNet();
 }
-const hot = window.claude && window.claude.hot;
-try { if (hot && hot.snapshot) hot.snapshot(() => ({ solo: soloState(), duel: duelState() })); } catch (e) {}
-if (hot && hot.ready) hot.ready(boot); else boot((hot && hot.data) || {});
+boot();
 })();

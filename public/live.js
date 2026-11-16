@@ -1,5 +1,6 @@
 /*
- * Métro Duel : liaison temps réel côté navigateur.
+ * Métro Duel : liaison temps réel par le serveur WebSocket du dépôt (server.js).
+ * Active seulement avec transport: "ws" dans config.js ; sinon c'est p2p.js qui relie les joueurs.
  *
  * Ouvre une WebSocket vers le serveur et expose des « salons » : chacun y publie son état
  * (presence) et reçoit celui des autres (peers / onPeers). La connexion se rétablit toute
@@ -8,6 +9,7 @@
 (() => {
 'use strict';
 const cfg = window.METRO_CONFIG || {};
+if (cfg.transport !== 'ws') return;
 const LOBBY = 'lobby';
 const url = () => cfg.wsUrl || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
 
@@ -150,5 +152,6 @@ window.MetroLive = {
     return live.firstOpen;
   },
   isOpen: () => live.open,
+  listsGames: true,   // l'accueil du serveur annonce les parties ouvertes
 };
 })();
