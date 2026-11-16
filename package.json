@@ -1,0 +1,17 @@
+{
+  "name": "metro-duel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Les stations du métro de Paris sur une carte, en solo ou en duel en direct.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.23.0"
+  }
+}

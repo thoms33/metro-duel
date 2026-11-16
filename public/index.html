@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Métro Duel</title>
+<meta name="description" content="Retrouve de mémoire les 321 stations du métro de Paris sur une carte, seul contre la montre ou en duel en direct.">
+<meta name="theme-color" content="#14275a">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=Doto:wght@900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <div class="led" id="led" role="timer" aria-label="Temps restant">60:00</div>
+    <div class="scores">
+      <div class="sc me" id="meBox"><span class="sc-name" id="meName">Trouvées</span><span class="sc-val"><b id="meScore">0</b><i id="meTotal">/321</i></span></div>
+      <div class="sc opp" id="oppBox" hidden><span class="sc-name" id="oppName">Adversaire</span><span class="sc-val"><b id="oppScore">0</b></span></div>
+    </div>
+    <div class="bar-actions">
+      <button class="ghost" id="btnPause" type="button" hidden>Pause</button>
+      <button class="ghost" id="btnStop" type="button" hidden>Terminer</button>
+    </div>
+  </header>
+
+  <section id="entry">
+    <form id="guess" autocomplete="off">
+      <label class="vh" for="q">Nom d'une station</label>
+      <input id="q" name="station" type="text" placeholder="Nom d'une station…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" disabled>
+      <button id="ok" type="submit" disabled>Valider</button>
+    </form>
+    <div id="fb" role="status" aria-live="polite"><span class="msg hint">Accents, tirets et majuscules ne comptent pas.</span></div>
+  </section>
+
+  <main id="mapwrap">
+    <canvas id="map" aria-label="Carte du métro de Paris"></canvas>
+    <div class="mapctl">
+      <button id="zin" type="button" aria-label="Zoomer">+</button>
+      <button id="zout" type="button" aria-label="Dézoomer">−</button>
+      <button id="zfit" type="button" aria-label="Voir tout le réseau">⤢</button>
+      <button id="follow" type="button" aria-pressed="false" aria-label="Centrer la carte sur chaque station trouvée">◎</button>
+    </div>
+    <div id="tip" hidden></div>
+    <div id="count" hidden></div>
+    <button class="btn primary small" id="backToEnd" type="button" hidden>Voir les résultats</button>
+  </main>
+
+  <aside id="side">
+    <nav id="lines" aria-label="Avancement par ligne"></nav>
+    <div id="sheet" hidden></div>
+  </aside>
+
+  <div id="overlay">
+    <section class="card" id="cardHome">
+      <h1 class="sign">Métro Duel<small id="signSub">321 stations · 16 lignes · 60 minutes</small></h1>
+      <p>Tape le nom des stations du métro de Paris : chacune s'allume sur la carte. Seul contre la montre, ou à deux en direct.</p>
+      <div class="field">
+        <span class="lab" id="soloDurLab">Durée en solo</span>
+        <div class="seg" id="soloDur" role="group" aria-labelledby="soloDurLab">
+          <button type="button" data-v="3600">60 min</button><button type="button" data-v="1800">30 min</button><button type="button" data-v="900">15 min</button>
+        </div>
+      </div>
+      <div class="stack">
+        <button class="btn primary" id="btnSolo" type="button">Jouer seul</button>
+        <button class="btn second" id="btnResume" type="button" hidden>Reprendre ma partie</button>
+        <button class="btn second" id="btnDuel" type="button">Duel 1 contre 1</button>
+      </div>
+      <p class="fine" id="bestLine" hidden></p>
+      <p class="fine">Réseau en service à l'automne 2026 : lignes 1 à 14, 3 bis et 7 bis. Données Île-de-France Mobilités (open data) via Métropolist, contours IGN Admin Express et Code for America.</p>
+    </section>
+
+    <section class="card" id="cardDuel" hidden>
+      <h2 class="h">Duel en direct</h2>
+      <p class="note" id="netMsg" hidden></p>
+      <div class="stack" id="duelForm">
+        <div class="field"><label class="lab" for="nick">Ton pseudo</label><input id="nick" type="text" maxlength="16" autocomplete="off" spellcheck="false"></div>
+        <div class="box">
+          <h3 class="h3">Créer une partie</h3>
+          <div class="field">
+            <span class="lab" id="duelDurLab">Durée</span>
+            <div class="seg" id="duelDur" role="group" aria-labelledby="duelDurLab">
+              <button type="button" data-v="3600">60 min</button><button type="button" data-v="1800">30</button><button type="button" data-v="900">15</button><button type="button" data-v="300">5</button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="lab" id="duelRuleLab">Règle</span>
+            <div class="seg" id="duelRule" role="group" aria-labelledby="duelRuleLab">
+              <button type="button" data-v="course">Course</button><button type="button" data-v="conq">Conquête</button>
+            </div>
+            <p class="fine" id="ruleHelp"></p>
+          </div>
+          <button class="btn primary" id="btnHost" type="button">Créer la partie</button>
+        </div>
+        <div class="box">
+          <h3 class="h3">Rejoindre une partie</h3>
+          <div class="stack" id="openGames"></div>
+          <form class="row" id="joinForm" autocomplete="off">
+            <label class="vh" for="code">Code de la partie</label>
+            <input id="code" name="code" type="text" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false">
+            <button class="btn second" type="submit">Rejoindre</button>
+          </form>
+          <p class="fine bad" id="joinErr" hidden></p>
+        </div>
+      </div>
+      <button class="btn quiet" id="duelBack" type="button">Retour à l'accueil</button>
+    </section>
+
+    <section class="card" id="cardLobby" hidden>
+      <h2 class="h">Salle d'attente</h2>
+      <div class="row"><div class="led code" id="lobbyCode">----</div><button class="btn second small" id="copyCode" type="button">Copier le code</button><button class="btn second small" id="shareLink" type="button" hidden>Partager le lien</button></div>
+      <p class="fine" id="lobbyRule"></p>
+      <div class="stack" id="lobbyPlayers"></div>
+      <p class="note" id="lobbyMsg"></p>
+      <button class="btn primary" id="btnLaunch" type="button" hidden>Lancer la partie</button>
+      <button class="btn quiet" id="lobbyQuit" type="button">Quitter la partie</button>
+    </section>
+
+    <section class="card" id="cardPause" hidden>
+      <h2 class="h">Pause</h2>
+      <p>Le chrono est arrêté. La carte reste visible, la saisie est bloquée.</p>
+      <button class="btn primary" id="btnResumePause" type="button">Reprendre</button>
+    </section>
+
+    <section class="card" id="cardEnd" hidden></section>
+  </div>
+</div>
+
+<noscript><p class="note">Ce jeu a besoin de JavaScript.</p></noscript>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="live.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
