@@ -7,7 +7,7 @@ Site public : https://thoms33.github.io/metro-duel/
 ## Jouer
 
 - **Seul** : « Jouer seul », choisis la durée. La partie se garde dans le navigateur : tu peux la reprendre plus tard.
-- **Duel** : « Duel 1 contre 1 » → « Créer la partie », puis envoie le lien (« Partager le lien ») ou le code à 4 caractères. L'adversaire ouvre le lien, ou tape le code dans « Rejoindre une partie ». L'hôte lance, un décompte de 4 secondes démarre pour les deux.
+- **Duel** : « Duel 1 contre 1 » → « Créer la partie ». La partie apparaît chez tous ceux qui ont ouvert l'écran du duel : l'adversaire touche « Rejoindre » dans la liste. Il peut aussi ouvrir le lien envoyé avec « Partager le lien », ou taper le code à 4 caractères. L'hôte lance, un décompte de 4 secondes démarre pour les deux.
 - Deux règles : **Course** (chacun sa carte) et **Conquête** (une station appartient au premier qui la trouve).
 
 ## Lancer en local
@@ -23,8 +23,8 @@ N'importe quel serveur de fichiers statiques sur `public/` fait aussi l'affaire.
 
 - `public/` : le site (HTML, CSS, JS sans framework). `app.js` contient le jeu, `data.js` les stations et les lignes, `config.js` les réglages.
 - Le duel passe par des « salons » : chaque joueur y publie son état (pseudo, stations trouvées, heure de départ) et reçoit celui de l'autre. Deux façons de les relier, au choix dans `config.js` :
-  - **`p2p`** (par défaut) : `p2p.js`, liaison directe entre navigateurs en WebRTC, par [PeerJS](https://peerjs.com) (MIT, copie dans `public/vendor/`, chargée seulement en duel). La mise en relation passe par le serveur public de PeerJS, ensuite les données vont d'un joueur à l'autre. Le premier arrivé dans un salon en tient l'identifiant (`metro-duel-duel-<code>`) et relaie l'état des autres ; s'il part, l'autre reprend la main. Aucun serveur à faire tourner : un hébergement statique suffit.
-  - **`ws`** : `live.js` + `server.js`, un processus Node qui sert `public/` et relaie en WebSocket (`/ws`). Il ne connaît pas les règles et ne stocke rien. Seul ce mode affiche la liste des parties ouvertes.
+  - **`p2p`** (par défaut) : `p2p.js`, liaison directe entre navigateurs en WebRTC, par [PeerJS](https://peerjs.com) (MIT, copie dans `public/vendor/`, chargée seulement en duel). La mise en relation passe par le serveur public de PeerJS, ensuite les données vont d'un joueur à l'autre. Le premier arrivé dans un salon en tient l'identifiant (`metro-duel-duel-<code>`) et relaie l'état des autres ; s'il part, un autre reprend la main. La liste des parties ouvertes passe par un salon d'accueil commun (`metro-duel-lobby`), rejoint à l'ouverture de l'écran du duel. Aucun serveur à faire tourner : un hébergement statique suffit.
+  - **`ws`** : `live.js` + `server.js`, un processus Node qui sert `public/` et relaie en WebSocket (`/ws`). Il ne connaît pas les règles et ne stocke rien.
 - Le lien d'invitation est `https://ton-site/#duel-code`.
 
 ## Mettre en ligne

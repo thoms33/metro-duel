@@ -338,6 +338,7 @@ const q = $('q'), fb = $('fb'), led = $('led');
 const cards = { home: $('cardHome'), duel: $('cardDuel'), lobby: $('cardLobby'), pause: $('cardPause'), end: $('cardEnd') };
 function show(name) {
   screen = name; if (name !== 'end') peek = false;
+  if (name === 'duel' || name === 'lobby') openLobby();   // voir les parties ouvertes, ou annoncer la sienne
   const over = name !== 'play' && !(name === 'end' && peek);
   $('overlay').hidden = !over;
   for (const k in cards) cards[k].hidden = k !== name;
@@ -639,13 +640,22 @@ const myName = () => { const n = cleanName(nick.value); store.set('localStorage'
 
 // Le direct passe par p2p.js (liaison directe entre joueurs) ou par live.js (serveur WebSocket), selon config.js.
 const LIVE = window.MetroLive || null;
+// en liaison directe, l'accueil (liste des parties ouvertes) ne se relie qu'à l'ouverture de l'écran du duel
+let lobbyWanted = false;
+function openLobby() { lobbyWanted = true; if (Net.ns && Net.ns.open) Net.ns.open(); }
 async function initNet() {
   let ns = null;
   const slow = setTimeout(() => { Net.slow = true; renderDuelMenu(); }, 6000);
   try { if (LIVE) ns = await LIVE.connect(); } catch (e) { ns = null; }
   clearTimeout(slow);
   Net.ns = ns; Net.state = ns ? 'ok' : 'off';
-  if (ns) { try { ns.onPeers(() => { if (screen === 'duel') renderOpenGames(); }); } catch (e) {} }
+  if (ns) {
+    try {
+      ns.onPeers(() => { if (screen === 'duel') renderOpenGames(); });
+      if (ns.onConnection) ns.onConnection(() => { if (screen === 'duel') renderOpenGames(); });
+    } catch (e) {}
+    if (lobbyWanted) openLobby();
+  }
   renderDuelMenu();
   if (pendingDuel) { const p = pendingDuel; pendingDuel = null; if (ns) resumeDuel(p); else store.set('sessionStorage', 'md.duel', null); }
 }
@@ -667,8 +677,7 @@ function openGames() {
 }
 function renderOpenGames() {
   const box = $('openGames');
-  // liaison directe : pas d'annuaire des parties, on se retrouve par le code ou le lien
-  if (!LIVE || !LIVE.listsGames) { box.replaceChildren(el('p', 'fine', 'Tape le code que ton adversaire t\'a donné, ou ouvre le lien qu\'il t\'a envoyé.')); return; }
+  if (Net.ns && Net.ns.connected && !Net.ns.connected()) { box.replaceChildren(el('p', 'fine', 'Recherche des parties ouvertes…')); return; }
   const list = openGames();
   if (!list.length) { box.replaceChildren(el('p', 'fine', 'Aucune partie en attente pour l\'instant. Si quelqu\'un en crée une, elle apparaît ici.')); return; }
   box.replaceChildren(...list.slice(0, 6).map(g => {

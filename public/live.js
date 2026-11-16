@@ -152,6 +152,5 @@ window.MetroLive = {
     return live.firstOpen;
   },
   isOpen: () => live.open,
-  listsGames: true,   // l'accueil du serveur annonce les parties ouvertes
 };
 })();

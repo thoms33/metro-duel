@@ -5,7 +5,9 @@
  * passe par le serveur public de PeerJS, puis l'état des joueurs circule d'un navigateur à l'autre.
  * Le premier arrivé dans un salon réserve son identifiant et en devient le relais : il recopie à chacun
  * l'état des autres, comme le ferait le serveur. Si le relais disparaît, un autre membre reprend l'identifiant.
- * PeerJS (vendor/peerjs.min.js) n'est chargé qu'à l'entrée dans un salon : le solo n'en a pas besoin.
+ * L'accueil est un salon comme les autres (metro-duel-lobby) : les hôtes y annoncent leur partie ouverte.
+ * On ne s'y relie qu'en ouvrant l'écran du duel, et PeerJS (vendor/peerjs.min.js) n'est chargé qu'à ce
+ * moment-là : le solo n'en a pas besoin.
  */
 (() => {
 'use strict';
@@ -13,7 +15,7 @@ const cfg = window.METRO_CONFIG || {};
 if (cfg.transport === 'ws') return;               // c'est le serveur WebSocket (live.js) qui relie les joueurs
 
 const PREFIX = 'metro-duel-', LOBBY = 'lobby';
-const MAX_PEERS = 8;                              // connexions par salon, relais compris
+const maxPeers = R => (R.name === LOBBY ? 40 : 8); // connexions par salon, relais compris
 const PING_MS = 3000, SILENCE_MS = 12000;         // signe de vie ; 12 s sans nouvelles et la liaison est perdue
 const LINK_MS = 15000;                            // délai pour rejoindre le relais
 const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,31}$/;
@@ -174,7 +176,7 @@ function accept(R, gen, conn) {
   const id = conn.peer;
   conn.on('open', () => {
     if (gen !== R.gen) { try { conn.close(); } catch (e) {} return; }
-    if (!R.links.has(id) && R.links.size + 1 >= MAX_PEERS) { setTimeout(() => { try { conn.close(); } catch (e) {} }, 200); return; }
+    if (!R.links.has(id) && R.links.size + 1 >= maxPeers(R)) { setTimeout(() => { try { conn.close(); } catch (e) {} }, 200); return; }
     const old = R.links.get(id);
     R.links.set(id, { conn, seen: Date.now(), p: null });
     if (old) { try { old.conn.close(); } catch (e) {} }
@@ -261,9 +263,13 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ---------------- accueil ---------------- */
-// sans serveur, pas d'annuaire des parties : l'accueil est local, on se retrouve par le code ou le lien
 const lobby = makeRoom(LOBBY);
-lobby.linked = true;
+/** Se relie à l'accueil (liste des parties ouvertes). Sans effet après le premier appel. */
+lobby.api.open = () => {
+  if (rooms.has(LOBBY)) return;
+  rooms.set(LOBBY, lobby);
+  attempt(lobby);
+};
 lobby.api.join = name => {
   let R = rooms.get(name);
   if (!R) { R = makeRoom(name); rooms.set(name, R); attempt(R); }
@@ -273,6 +279,5 @@ lobby.api.join = name => {
 window.MetroLive = {
   connect: () => Promise.resolve(lobby.api),
   isOpen: () => true,
-  listsGames: false,
 };
 })();
