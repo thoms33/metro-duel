@@ -2,19 +2,21 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Métro Duel</title>
 <meta name="description" content="Retrouve de mémoire les 321 stations du métro de Paris sur une carte, seul contre la montre ou en duel en direct.">
-<meta name="theme-color" content="#14275a">
+<meta name="theme-color" content="#080c16">
+<meta name="color-scheme" content="dark">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=Doto:wght@900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="app">
   <header id="bar">
+    <div class="brand" aria-hidden="true">Métro<b>Duel</b></div>
     <div class="led" id="led" role="timer" aria-label="Temps restant">60:00</div>
     <div class="scores">
       <div class="sc me" id="meBox"><span class="sc-name" id="meName">Trouvées</span><span class="sc-val"><b id="meScore">0</b><i id="meTotal">/321</i></span></div>
@@ -24,13 +26,17 @@
       <button class="ghost" id="btnPause" type="button" hidden>Pause</button>
       <button class="ghost" id="btnStop" type="button" hidden>Terminer</button>
     </div>
+    <div class="prog" aria-hidden="true"><span class="prog-me"></span><span class="prog-opp"></span></div>
   </header>
 
   <section id="entry">
     <form id="guess" autocomplete="off">
       <label class="vh" for="q">Nom d'une station</label>
-      <input id="q" name="station" type="text" placeholder="Nom d'une station…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" disabled>
-      <button id="ok" type="submit" disabled>Valider</button>
+      <div class="qwrap">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <input id="q" name="station" type="text" placeholder="Nom d'une station…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" disabled>
+      </div>
+      <button id="ok" type="submit" disabled><span class="ok-txt">Valider</span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
     </form>
     <div id="fb" role="status" aria-live="polite"><span class="msg hint">Accents, tirets et majuscules ne comptent pas.</span></div>
   </section>
@@ -38,10 +44,10 @@
   <main id="mapwrap">
     <canvas id="map" aria-label="Carte du métro de Paris"></canvas>
     <div class="mapctl">
-      <button id="zin" type="button" aria-label="Zoomer">+</button>
-      <button id="zout" type="button" aria-label="Dézoomer">−</button>
-      <button id="zfit" type="button" aria-label="Voir tout le réseau">⤢</button>
-      <button id="follow" type="button" aria-pressed="false" aria-label="Centrer la carte sur chaque station trouvée">◎</button>
+      <button id="zin" type="button" aria-label="Zoomer"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button id="zout" type="button" aria-label="Dézoomer"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+      <button id="zfit" type="button" aria-label="Voir tout le réseau"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <button id="follow" type="button" aria-pressed="false" aria-label="Centrer la carte sur chaque station trouvée"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" class="dot"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
     </div>
     <div id="tip" hidden></div>
     <div id="count" hidden></div>
@@ -49,14 +55,36 @@
   </main>
 
   <aside id="side">
+    <h2 class="side-h">Lignes</h2>
     <nav id="lines" aria-label="Avancement par ligne"></nav>
     <div id="sheet" hidden></div>
   </aside>
 
   <div id="overlay">
     <section class="card" id="cardHome">
-      <h1 class="sign">Métro Duel<small id="signSub">321 stations · 16 lignes · 60 minutes</small></h1>
-      <p>Tape le nom des stations du métro de Paris : chacune s'allume sur la carte. Seul contre la montre, ou à deux en direct.</p>
+      <div class="hero">
+        <svg class="hero-art" viewBox="0 0 320 120" aria-hidden="true">
+          <g fill="none" stroke-width="7" stroke-linecap="round">
+            <path d="M-10 92C60 92 90 30 160 30S260 70 330 40" stroke="#ffbe00"/>
+            <path d="M-10 30C70 30 110 96 180 90S280 20 330 24" stroke="#82c8e6"/>
+            <path d="M40 130C70 80 140 70 170 60S240 0 250-10" stroke="#ff82b4"/>
+          </g>
+          <g stroke-width="3">
+            <circle cx="75" cy="61" r="6" fill="#4d8dff" stroke="#fff"/>
+            <circle cx="160" cy="30" r="6" fill="#4d8dff" stroke="#fff"/>
+            <circle cx="262" cy="53" r="6" fill="#4d8dff" stroke="#fff"/>
+            <circle cx="180" cy="90" r="6" fill="#ff4d5e" stroke="#fff"/>
+            <circle cx="217" cy="25" r="6" fill="#ff4d5e" stroke="#fff"/>
+            <circle cx="89" cy="62" r="5" fill="#0b111e" stroke="#e2e8f4"/>
+            <circle cx="105" cy="80" r="5" fill="#0b111e" stroke="#e2e8f4"/>
+            <circle cx="170" cy="60" r="5" fill="#0b111e" stroke="#e2e8f4"/>
+            <circle cx="245" cy="46" r="5" fill="#0b111e" stroke="#e2e8f4"/>
+          </g>
+        </svg>
+        <h1 class="logo"><span>Métro</span><span>Duel</span></h1>
+        <p class="hero-sub" id="signSub">321 stations · 16 lignes · 60 minutes</p>
+      </div>
+      <p class="lead">Tape le nom des stations du métro de Paris : chacune s'allume sur la carte. Seul contre la montre, ou à deux en direct.</p>
       <div class="field">
         <span class="lab" id="soloDurLab">Durée en solo</span>
         <div class="seg" id="soloDur" role="group" aria-labelledby="soloDurLab">
@@ -66,9 +94,9 @@
       <div class="stack">
         <button class="btn primary" id="btnSolo" type="button">Jouer seul</button>
         <button class="btn second" id="btnResume" type="button" hidden>Reprendre ma partie</button>
-        <button class="btn second" id="btnDuel" type="button">Duel 1 contre 1</button>
+        <button class="btn versus" id="btnDuel" type="button"><span class="vs-dot me"></span>Duel 1 contre 1<span class="vs-dot opp"></span></button>
       </div>
-      <p class="fine" id="bestLine" hidden></p>
+      <p class="fine best" id="bestLine" hidden></p>
       <p class="fine">Réseau en service à l'automne 2026 : lignes 1 à 14, 3 bis et 7 bis. Données Île-de-France Mobilités (open data) via Métropolist, contours IGN Admin Express et Code for America.</p>
     </section>
 
@@ -77,7 +105,7 @@
       <p class="note" id="netMsg" hidden></p>
       <div class="stack" id="duelForm">
         <div class="field"><label class="lab" for="nick">Ton pseudo</label><input id="nick" type="text" maxlength="16" autocomplete="off" spellcheck="false"></div>
-        <div class="box">
+        <div class="box hot">
           <h3 class="h3">Partie rapide</h3>
           <p class="fine">Tu affrontes le premier joueur disponible, sans code ni lien à partager. Si personne n'attend, ta partie s'ouvre (durée et règle choisies ci-dessous) et démarre dès qu'un joueur arrive.</p>
           <button class="btn primary" id="btnQuick" type="button">Trouver un adversaire</button>
@@ -97,7 +125,7 @@
             </div>
             <p class="fine" id="ruleHelp"></p>
           </div>
-          <button class="btn primary" id="btnHost" type="button">Créer la partie</button>
+          <button class="btn second" id="btnHost" type="button">Créer la partie</button>
         </div>
         <div class="box">
           <h3 class="h3">Rejoindre une partie</h3>
@@ -115,7 +143,7 @@
 
     <section class="card" id="cardLobby" hidden>
       <h2 class="h" id="lobbyTitle">Salle d'attente</h2>
-      <div class="row" id="lobbyCodeRow"><div class="led code" id="lobbyCode">----</div><button class="btn second small" id="copyCode" type="button">Copier le code</button><button class="btn second small" id="shareLink" type="button" hidden>Partager le lien</button></div>
+      <div class="row" id="lobbyCodeRow"><div class="codebox" id="lobbyCode">----</div><button class="btn second small" id="copyCode" type="button">Copier le code</button><button class="btn second small" id="shareLink" type="button" hidden>Partager le lien</button></div>
       <p class="fine" id="lobbyRule"></p>
       <div class="stack" id="lobbyPlayers"></div>
       <p class="note" id="lobbyMsg"></p>
@@ -125,7 +153,7 @@
 
     <section class="card" id="cardPause" hidden>
       <h2 class="h">Pause</h2>
-      <p>Le chrono est arrêté. La carte reste visible, la saisie est bloquée.</p>
+      <p class="lead">Le chrono est arrêté. La carte reste visible, la saisie est bloquée.</p>
       <button class="btn primary" id="btnResumePause" type="button">Reprendre</button>
     </section>
 

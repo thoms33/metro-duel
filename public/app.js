@@ -106,7 +106,19 @@ const canTake = i => playing() && (isConq() ? status[i] === 0 : !G.found.has(i))
 
 /* ================= carte ================= */
 const cv = $('map'), ctx = cv.getContext('2d');
-const C = { out: '#efece3', paris: '#fbfaf5', edge: '#cbc5b3', water: '#b3d2ea', ink: '#1a2238', dotEdge: '#6a7080', me: '#1c3d93', opp: '#d6362b', miss: '#b3261e', halo: 'rgba(251,250,245,.94)' };
+const C = {
+  out: '#080c16', paris: '#0f1627', edge: '#2a3552', water: '#11304f', dot: '#0b111e', dotEdge: 'rgba(226,232,244,.62)',
+  me: '#4d8dff', opp: '#ff4d5e', miss: '#ffb547', focus: '#ffd23f',
+  label: '#eef2fb', labelOpp: '#ff9aa6', labelMiss: '#ffc978', halo: 'rgba(8,12,22,.92)',
+};
+// sur le fond sombre, les lignes foncées (2, 3, 4, 11, 12, 14) sont éclaircies ; les pastilles gardent la couleur officielle
+function mapColor(hex) {
+  const n = parseInt(hex.slice(1), 16), rgb = [n >> 16 & 255, n >> 8 & 255, n & 255];
+  const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  if (0.2126 * r + 0.7152 * g + 0.0722 * b >= 0.16) return hex;
+  return '#' + rgb.map(v => Math.round(v + (255 - v) * 0.38).toString(16).padStart(2, '0')).join('');
+}
+for (const l of LINES) l.mc = mapColor(l.c);
 const V = { k: 0.02, x: 0, y: 0, w: 0, h: 0, dpr: 1, fitK: 0.02, auto: true };
 const BB = ST.reduce((b, s) => [Math.min(b[0], s.x), Math.min(b[1], s.y), Math.max(b[2], s.x), Math.max(b[3], s.y)], [1e9, 1e9, -1e9, -1e9]);
 const pulses = new Map();
@@ -198,21 +210,21 @@ function draw(t) {
   ctx.fillStyle = C.paris; ctx.fill(P_PARIS);
   ctx.strokeStyle = C.edge; ctx.lineWidth = 1 / k; ctx.stroke(P_PARIS);
   ctx.strokeStyle = C.water; ctx.lineWidth = Math.max(2.5 / k, 95); ctx.stroke(P_WATER);
-  const lw = clamp(1.7 + 17 * k, 2, 5), r0 = clamp(1.6 + 24 * k, 2.2, 5.5);
+  const lw = clamp(2.2 + 17 * k, 2.6, 5.5), r0 = clamp(1.6 + 24 * k, 2.2, 5.5);
   for (const l of LINES) {
     if (l.i === sel) continue;
-    ctx.globalAlpha = sel < 0 ? 1 : 0.16; ctx.strokeStyle = l.c; ctx.lineWidth = lw / k; ctx.stroke(l.path);
+    ctx.globalAlpha = sel < 0 ? 1 : 0.2; ctx.strokeStyle = l.mc; ctx.lineWidth = lw / k; ctx.stroke(l.path);
   }
   if (sel < 0) {
     ctx.lineCap = 'butt';
     for (const s of STRIPES) {
       const d = 7 / k;
       ctx.setLineDash([d, d * (s.n - 1)]); ctx.lineDashOffset = -s.m * d;
-      ctx.strokeStyle = LINES[s.li].c; ctx.lineWidth = lw / k; ctx.stroke(s.p);
+      ctx.strokeStyle = LINES[s.li].mc; ctx.lineWidth = lw / k; ctx.stroke(s.p);
     }
     ctx.setLineDash([]); ctx.lineCap = 'round';
   } else {
-    ctx.globalAlpha = 1; ctx.strokeStyle = LINES[sel].c; ctx.lineWidth = (lw + 1.5) / k; ctx.stroke(LINES[sel].path);
+    ctx.globalAlpha = 1; ctx.strokeStyle = LINES[sel].mc; ctx.lineWidth = (lw + 1.5) / k; ctx.stroke(LINES[sel].path);
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.globalAlpha = 1;
@@ -230,9 +242,9 @@ function draw(t) {
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
       if (st === 1) { ctx.fillStyle = C.me; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.3; ctx.stroke(); }
       else if (st === 2) { ctx.fillStyle = C.opp; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.3; ctx.stroke(); }
-      else { ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = G.reveal ? C.miss : C.dotEdge; ctx.lineWidth = G.reveal ? 1.6 : Math.max(1, r * 0.3); ctx.stroke(); }
+      else { ctx.fillStyle = C.dot; ctx.fill(); ctx.strokeStyle = G.reveal ? C.miss : C.dotEdge; ctx.lineWidth = G.reveal ? 1.6 : Math.max(1, r * 0.3); ctx.stroke(); }
       if (ring[s.i]) { ctx.beginPath(); ctx.arc(x, y, r + 2.6, 0, 6.2832); ctx.strokeStyle = C.opp; ctx.lineWidth = 1.8; ctx.stroke(); }
-      if (s.i === tipIdx) { ctx.beginPath(); ctx.arc(x, y, r + 6, 0, 6.2832); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.stroke(); }
+      if (s.i === tipIdx) { ctx.beginPath(); ctx.arc(x, y, r + 6, 0, 6.2832); ctx.strokeStyle = C.focus; ctx.lineWidth = 2; ctx.stroke(); }
       boxes.push([x - r - 1, y - r - 1, x + r + 1, y + r + 1]);
     }
   }
@@ -246,7 +258,7 @@ function draw(t) {
     ctx.strokeStyle = p.c; ctx.globalAlpha = 0.8 * (1 - u); ctx.lineWidth = 3; ctx.stroke(); ctx.globalAlpha = 1;
   }
   // noms : les plus récents d'abord, sans chevauchement
-  ctx.font = '600 ' + (k > 0.2 ? 12.5 : 11.5) + 'px Barlow, system-ui, sans-serif';
+  ctx.font = '700 ' + (k > 0.2 ? 12.5 : 11.5) + 'px Manrope, system-ui, sans-serif';
   ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.lineWidth = 3.2; ctx.strokeStyle = C.halo;
   const th = 14, fk = k > 0.2 ? 1 : 0;
   for (const i of labelOrder) {
@@ -263,7 +275,7 @@ function draw(t) {
       if (hit) continue;
       boxes.push(b);
       ctx.strokeText(s.name, c[0], c[1] + th / 2);
-      ctx.fillStyle = status[i] === 1 ? C.ink : status[i] === 2 ? C.opp : C.miss;
+      ctx.fillStyle = status[i] === 1 ? C.label : status[i] === 2 ? C.labelOpp : C.labelMiss;
       ctx.fillText(s.name, c[0], c[1] + th / 2);
       break;
     }
@@ -352,6 +364,7 @@ function renderLed() {
   if (led.textContent !== txt) led.textContent = txt;
   led.classList.toggle('low', G.on && ms <= 60000);
 }
+const bar = $('bar'), progSig = { m: '', o: '' };
 function updateHeader() {
   renderLed();
   const duel = isDuel() && (G.on || screen === 'lobby');
@@ -362,6 +375,9 @@ function updateHeader() {
   $('oppName').textContent = Opp.name || 'Adversaire';
   $('oppScore').textContent = oppScore;
   $('oppBox').classList.toggle('away', !!Opp.id && !Opp.here);
+  // barres d'avancement sous le bandeau
+  const pm = (myScore / N).toFixed(4), po = (duel && Opp.id ? oppScore / N : 0).toFixed(4);
+  if (pm !== progSig.m || po !== progSig.o) { progSig.m = pm; progSig.o = po; bar.style.setProperty('--pm', pm); bar.style.setProperty('--po', po); }
   $('btnPause').hidden = !(screen === 'play' && !isDuel() && G.on && !G.ended);
   $('btnStop').hidden = !(screen === 'play' && G.on && !G.ended);
   const can = playing() && screen === 'play';
